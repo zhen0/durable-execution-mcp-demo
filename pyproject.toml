@@ -1,0 +1,56 @@
+[project]
+name = "prefect-mcp-server"
+description = "MCP server for interacting with Prefect"
+readme = "README.md"
+dynamic = ["version"]
+authors = [{ name = "zzstoatzz", email = "thrast36@gmail.com" }]
+requires-python = ">=3.10"
+dependencies = ["fastmcp>=2.0.0", "prefect>=3.0.0"]
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest-sugar>=0.9.0",
+    "pytest-asyncio>=0.21.0",
+    "ty>=0.0.1a19",
+    "ruff>=0.12.9",
+    "pre-commit>=4.3.0",
+]
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/prefect_mcp_server"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+pythonpath = ["src"]
+# filterwarnings = ["ignore::DeprecationWarning", "ignore::ResourceWarning"]
+
+[tool.ty.src]
+include = ["src", "tests"]
+exclude = ["**/node_modules", "**/__pycache__", ".venv", ".git", "dist"]
+
+[tool.ty.environment]
+python-version = "3.10"
+
+[tool.ty.rules]
+# invalid-argument-type = "ignore"
+# no-matching-overload = "ignore"
+# unknown-argument = "ignore"
+# unresolved-attribute = "ignore"
+
+# call-non-callable = "ignore"
+# missing-argument = "ignore"
+
+[tool.ruff.lint]
+extend-select = ["I", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+# "__init__.py" = ["F401", "I001", "RUF013"]
+# "src/prefect_mcp_server/__init__.py" = ["E402"]

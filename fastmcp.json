@@ -1,0 +1,18 @@
+{
+  "name": "prefect-mcp",
+  "description": "MCP server for interacting with Prefect deployments and events",
+  "version": "0.1.0",
+  "command": "uv",
+  "args": [
+    "run",
+    "--with",
+    "prefect-mcp-server",
+    "fastmcp",
+    "run",
+    "src/prefect_mcp_server/server.py"
+  ],
+  "env": {
+    "PREFECT_API_URL": "${PREFECT_API_URL}",
+    "PREFECT_API_KEY": "${PREFECT_API_KEY}"
+  }
+}
