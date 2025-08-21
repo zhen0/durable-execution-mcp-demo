@@ -2,7 +2,10 @@
 
 from prefect_mcp_server.server import mcp
 
-if __name__ == "__main__":
-    # This allows running with: python -m prefect_mcp_server
-    # or: uv run fastmcp run src/prefect_mcp_server/server.py
+
+def main():
     mcp.run()
+
+
+if __name__ == "__main__":
+    main()

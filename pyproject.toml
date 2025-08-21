@@ -3,9 +3,13 @@ name = "prefect-mcp-server"
 description = "MCP server for interacting with Prefect"
 readme = "README.md"
 dynamic = ["version"]
-authors = [{ name = "zzstoatzz", email = "thrast36@gmail.com" }]
+authors = [{ name = "Prefect Technologies", email = "help@prefect.io" }]
 requires-python = ">=3.10"
 dependencies = ["fastmcp>=2.0.0", "prefect>=3.0.0"]
+
+
+[project.scripts]
+prefect-mcp-server = "prefect_mcp_server.__main__:main"
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
