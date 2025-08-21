@@ -1,17 +1,15 @@
 """Prefect client wrapper for the MCP server."""
 
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID
 
 from prefect.client.orchestration import get_client
-from prefect.events.clients import get_events_subscriber
-from prefect.events.filters import EventFilter, EventNameFilter
 
 from prefect_mcp_server.settings import settings
 from prefect_mcp_server.types import (
     DeploymentInfo,
     DeploymentsResult,
-    EventInfo,
     EventsResult,
     FlowRunInfo,
     RunDeploymentResult,
@@ -68,60 +66,66 @@ async def fetch_deployments() -> DeploymentsResult:
         }
 
 
-async def fetch_events(limit: int = 50, event_prefix: str | None = None) -> EventsResult:
-    """Fetch events from Prefect."""
-    event_filter = None
-    if event_prefix:
-        event_filter = EventFilter(
-            event=EventNameFilter(prefix=[event_prefix])
-        )
+async def fetch_events(
+    limit: int = 50, 
+    event_prefix: str | None = None,
+    occurred_after: str | None = None,
+    occurred_before: str | None = None
+) -> EventsResult:
+    """Fetch events from Prefect using the REST API.
     
-    events_list: list[EventInfo] = []
-    
+    Args:
+        limit: Maximum number of events to return
+        event_prefix: Optional prefix to filter event names
+        occurred_after: ISO 8601 timestamp to filter events after
+        occurred_before: ISO 8601 timestamp to filter events before
+    """
     try:
-        async with get_events_subscriber(filter=event_filter) as subscriber:
-            count = 0
-            async for event in subscriber:
-                event_info: EventInfo = {
-                    "id": event.id,
-                    "event": event.event,
-                    "occurred": event.occurred.isoformat(),
-                    "resource": {
-                        "id": event.resource.get("prefect.resource.id", ""),
-                        "name": event.resource.get("prefect.resource.name", ""),
-                        "role": event.resource.get("prefect.resource.role", ""),
-                    } if event.resource else None,
-                    "related": [
-                        {
-                            "id": related.get("prefect.resource.id", ""),
-                            "name": related.get("prefect.resource.name", ""),
-                            "role": related.get("prefect.resource.role", ""),
-                        }
-                        for related in (event.related or [])
-                    ],
-                    "payload": event.payload,
-                    "follows": getattr(event, 'follows', None),
+        async with get_client() as client:
+            # Build the filter
+            filter_dict = {}
+            if event_prefix:
+                filter_dict["event"] = {"name": {"prefix": [event_prefix]}}
+            
+            # Set default time range if not specified (from settings)
+            if not occurred_after and not occurred_before:
+                now = datetime.now(timezone.utc)
+                occurred_after = (now - timedelta(hours=settings.events_default_hours)).isoformat()
+                occurred_before = now.isoformat()
+            
+            if occurred_after or occurred_before:
+                filter_dict["occurred"] = {}
+                if occurred_after:
+                    filter_dict["occurred"]["since"] = occurred_after
+                if occurred_before:
+                    filter_dict["occurred"]["until"] = occurred_before
+            
+            # Make the API call to the events/filter endpoint
+            response = await client._client.post(
+                "/events/filter",
+                json={
+                    "filter": filter_dict if filter_dict else None,
+                    "limit": limit
                 }
-                events_list.append(event_info)
-                
-                count += 1
-                if count >= limit:
-                    break
-        
-        return {
-            "success": True,
-            "count": len(events_list),
-            "events": events_list,
-            "error": None,
-            "note": None,
-        }
+            )
+            response.raise_for_status()
+            data = response.json()
+            
+            # Return the events directly - no need to repack them
+            return {
+                "success": True,
+                "count": len(data.get("events", [])),
+                "events": data.get("events", []),
+                "error": None,
+                "total": data.get("total", 0),
+            }
     except Exception as e:
         return {
             "success": False,
             "count": 0,
             "events": [],
-            "error": f"Event streaming failed: {str(e)}",
-            "note": "Ensure the Prefect server has events enabled and is accessible",
+            "error": f"Failed to fetch events: {str(e)}",
+            "total": 0,
         }
 
 

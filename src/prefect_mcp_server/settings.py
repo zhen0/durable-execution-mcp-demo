@@ -18,6 +18,10 @@ class Settings(BaseSettings):
         default=50,
         description="Maximum number of events to fetch by default"
     )
+    events_default_hours: int = Field(
+        default=1,
+        description="Default number of hours to look back for events"
+    )
 
 
 settings = Settings()

@@ -21,10 +21,8 @@ uv run prefect-mcp-server
 - `prefect://deployments/list` - list all deployments with their details
 - `prefect://events/recent` - get recent events from the prefect instance
 
-**tools** - trigger deployments and query events
-- `run_deployment` - run a deployment by id
-- `run_deployment_by_name` - run a deployment by flow/deployment name  
-- `read_events` - read events with filtering options
+**tools** - trigger deployments
+- `run_deployment_by_name` - run a deployment by flow/deployment name
 
 ## installation
 
@@ -90,17 +88,14 @@ async def main():
         # list deployments
         deployments = await client.read_resource("prefect://deployments/list")
         
-        # run a deployment
+        # run a deployment by name
         result = await client.call_tool(
-            "run_deployment",
-            {"deployment_id": "abc-123-def"}
+            "run_deployment_by_name",
+            {"flow_name": "my-flow", "deployment_name": "production"}
         )
         
         # read events
-        events = await client.call_tool(
-            "read_events",
-            {"limit": 50, "event_prefix": "prefect.flow-run."}
-        )
+        events = await client.read_resource("prefect://events/recent")
 ```
 
 ## examples
@@ -109,17 +104,6 @@ async def main():
 # list deployments
 deployments = await client.read_resource("prefect://deployments/list")
 # returns: {"success": true, "count": 3, "deployments": [...]}
-
-# run deployment by id  
-result = await client.call_tool(
-    "run_deployment",
-    {
-        "deployment_id": "abc-123-def",
-        "parameters": {"key": "value"},
-        "name": "custom run name",
-        "tags": ["mcp", "automated"]
-    }
-)
 
 # run deployment by name
 result = await client.call_tool(
@@ -131,15 +115,9 @@ result = await client.call_tool(
     }
 )
 
-# read events
-events = await client.call_tool(
-    "read_events",
-    {
-        "limit": 50,
-        "event_prefix": "prefect.flow-run.",
-        "occurred_after": "2024-01-01T00:00:00Z"
-    }
-)
+# read recent events
+events = await client.read_resource("prefect://events/recent")
+# returns: {"success": true, "count": 10, "events": [...], "total": 50}
 ```
 
 ## development

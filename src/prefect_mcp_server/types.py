@@ -26,26 +26,14 @@ class DeploymentsResult(TypedDict):
     error: str | None
 
 
-class EventInfo(TypedDict):
-    """Information about a single event."""
-    
-    id: str
-    event: str
-    occurred: str
-    resource: dict[str, Any] | None
-    related: list[dict[str, Any]]
-    payload: dict[str, Any] | None
-    follows: str | None
-
-
 class EventsResult(TypedDict):
     """Result of reading events."""
     
     success: bool
     count: int
-    events: list[EventInfo]
+    events: list[dict[str, Any]]  # Raw event objects from the API
     error: str | None
-    note: str | None
+    total: int  # Total number of events available
 
 
 class FlowRunInfo(TypedDict):

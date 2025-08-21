@@ -26,53 +26,19 @@ async def list_deployments() -> DeploymentsResult:
     return await _prefect_client.fetch_deployments()
 
 
-@mcp.resource("prefect://events/recent")
+@mcp.resource("prefect://events/recent") 
 async def get_recent_events() -> EventsResult:
     """Get recent events from the Prefect instance.
     
-    Returns recent events with their details. Requires events to be enabled.
+    Returns recent events as a snapshot in time. This is a read-only
+    operation that queries the Prefect events API.
     """
     return await _prefect_client.fetch_events(
-        limit=settings.events_default_limit,
-        event_prefix=None
+        limit=settings.events_default_limit
     )
 
 
 # Tools - actions that modify state
-@mcp.tool
-async def run_deployment(
-    deployment_id: Annotated[
-        str, 
-        Field(description="The UUID of the deployment to run")
-    ],
-    parameters: Annotated[
-        dict[str, Any] | None,
-        Field(description="Optional parameter overrides for the flow run")
-    ] = None,
-    name: Annotated[
-        str | None,
-        Field(description="Optional custom name for the flow run")
-    ] = None,
-    tags: Annotated[
-        list[str] | None,
-        Field(description="Optional tags to add to the flow run")
-    ] = None,
-) -> RunDeploymentResult:
-    """Run a deployment and create a new flow run.
-    
-    Examples:
-        - Simple run: run_deployment("abc-123-def")
-        - With parameters: run_deployment("abc-123-def", parameters={"key": "value"})
-        - Custom name: run_deployment("abc-123-def", name="Manual run #1")
-    """
-    return await _prefect_client.run_deployment_by_id(
-        deployment_id=deployment_id,
-        parameters=parameters,
-        name=name,
-        tags=tags,
-    )
-
-
 @mcp.tool
 async def run_deployment_by_name(
     flow_name: Annotated[
@@ -111,27 +77,3 @@ async def run_deployment_by_name(
     )
 
 
-@mcp.tool
-async def read_events(
-    limit: Annotated[
-        int,
-        Field(ge=1, le=1000, description="Maximum number of events to return")
-    ] = 100,
-    event_prefix: Annotated[
-        str | None,
-        Field(description="Optional prefix to filter events (e.g., 'prefect.flow-run.')")
-    ] = None,
-) -> EventsResult:
-    """Read events from the Prefect instance with optional filtering.
-    
-    This tool provides more control over event reading compared to the resource.
-    
-    Examples:
-        - Get all events: read_events()
-        - Get flow run events: read_events(event_prefix="prefect.flow-run.")
-        - Limit results: read_events(limit=10)
-    """
-    return await _prefect_client.fetch_events(
-        limit=limit,
-        event_prefix=event_prefix
-    )
