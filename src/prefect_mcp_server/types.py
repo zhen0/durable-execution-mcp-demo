@@ -26,12 +26,29 @@ class DeploymentsResult(TypedDict):
     error: str | None
 
 
+class EventInfo(TypedDict):
+    """Simplified event information for LLM consumption."""
+    
+    id: str
+    event_type: str
+    occurred: str
+    resource_name: str | None
+    resource_id: str | None
+    state_type: str | None
+    state_name: str | None
+    state_message: str | None
+    flow_name: str | None
+    flow_run_name: str | None
+    tags: list[str] | None
+    follows: str | None
+
+
 class EventsResult(TypedDict):
     """Result of reading events."""
     
     success: bool
     count: int
-    events: list[dict[str, Any]]  # Raw event objects from the API
+    events: list[EventInfo]  # Structured event objects for LLM consumption
     error: str | None
     total: int  # Total number of events available
 

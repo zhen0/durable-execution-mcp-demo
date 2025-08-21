@@ -1,6 +1,6 @@
 """Prefect client wrapper for the MCP server."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
@@ -10,6 +10,7 @@ from prefect_mcp_server.settings import settings
 from prefect_mcp_server.types import (
     DeploymentInfo,
     DeploymentsResult,
+    EventInfo,
     EventsResult,
     FlowRunInfo,
     RunDeploymentResult,
@@ -21,36 +22,43 @@ async def fetch_deployments() -> DeploymentsResult:
     try:
         async with get_client() as client:
             deployments = await client.read_deployments(
-                limit=settings.deployments_default_limit,
-                offset=0
+                limit=settings.deployments_default_limit, offset=0
             )
-            
+
             deployment_list: list[DeploymentInfo] = []
             for deployment in deployments:
                 deployment_info: DeploymentInfo = {
                     "id": str(deployment.id),
                     "name": deployment.name,
                     "description": deployment.description,
-                    "tags": getattr(deployment, 'tags', []),
-                    "flow_name": getattr(deployment, 'flow_name', None),
-                    "is_schedule_active": getattr(deployment, 'is_schedule_active', None),
-                    "created": deployment.created.isoformat() if hasattr(deployment, 'created') and deployment.created else None,
-                    "updated": deployment.updated.isoformat() if hasattr(deployment, 'updated') and deployment.updated else None,
+                    "tags": getattr(deployment, "tags", []),
+                    "flow_name": getattr(deployment, "flow_name", None),
+                    "is_schedule_active": getattr(
+                        deployment, "is_schedule_active", None
+                    ),
+                    "created": deployment.created.isoformat()
+                    if hasattr(deployment, "created") and deployment.created
+                    else None,
+                    "updated": deployment.updated.isoformat()
+                    if hasattr(deployment, "updated") and deployment.updated
+                    else None,
                     "schedules": None,
                 }
-                
+
                 # Add schedule info if available
-                if hasattr(deployment, 'schedules') and deployment.schedules:
+                if hasattr(deployment, "schedules") and deployment.schedules:
                     deployment_info["schedules"] = [
                         {
-                            "active": getattr(schedule, 'active', None),
-                            "schedule": str(schedule.schedule) if hasattr(schedule, 'schedule') else None,
+                            "active": getattr(schedule, "active", None),
+                            "schedule": str(schedule.schedule)
+                            if hasattr(schedule, "schedule")
+                            else None,
                         }
                         for schedule in deployment.schedules
                     ]
-                
+
                 deployment_list.append(deployment_info)
-            
+
             return {
                 "success": True,
                 "count": len(deployment_list),
@@ -66,14 +74,63 @@ async def fetch_deployments() -> DeploymentsResult:
         }
 
 
+def _format_event(event: dict[str, Any]) -> EventInfo:
+    """Format a raw event into a simplified structure for LLM consumption."""
+    resource = event.get("resource", {})
+    related = event.get("related", [])
+    payload = event.get("payload", {})
+    validated_state = payload.get("validated_state", {})
+
+    # Extract flow and flow run information from related resources
+    flow_name = None
+    flow_run_name = None
+    for related_resource in related:
+        if related_resource.get("prefect.resource.role") == "flow":
+            flow_name = related_resource.get("prefect.resource.name")
+
+    # Extract resource name and flow run name
+    resource_name = resource.get("prefect.resource.name")
+    if resource_name and "/" in resource_name:
+        # Format like "respond in ask-marvin/1755793372.539679"
+        parts = resource_name.split("/", 1)
+        flow_run_name = parts[0]
+    else:
+        flow_run_name = resource_name
+
+    # Extract tags if available
+    tags = []
+    for key, value in resource.items():
+        if key.startswith("prefect.tag."):
+            tag_name = key.replace("prefect.tag.", "")
+            tags.append(f"{tag_name}:{value}" if value != "true" else tag_name)
+
+    formatted_event: EventInfo = {
+        "id": event.get("id", ""),
+        "event_type": event.get("event", ""),
+        "occurred": event.get("occurred", ""),
+        "resource_name": resource_name,
+        "resource_id": resource.get("prefect.resource.id"),
+        "state_type": resource.get("prefect.state-type") or validated_state.get("type"),
+        "state_name": resource.get("prefect.state-name") or validated_state.get("name"),
+        "state_message": resource.get("prefect.state-message")
+        or validated_state.get("message"),
+        "flow_name": flow_name,
+        "flow_run_name": flow_run_name,
+        "tags": tags if tags else None,
+        "follows": event.get("follows"),
+    }
+
+    return formatted_event
+
+
 async def fetch_events(
-    limit: int = 50, 
+    limit: int = 50,
     event_prefix: str | None = None,
     occurred_after: str | None = None,
-    occurred_before: str | None = None
+    occurred_before: str | None = None,
 ) -> EventsResult:
     """Fetch events from Prefect using the REST API.
-    
+
     Args:
         limit: Maximum number of events to return
         event_prefix: Optional prefix to filter event names
@@ -86,36 +143,38 @@ async def fetch_events(
             filter_dict = {}
             if event_prefix:
                 filter_dict["event"] = {"name": {"prefix": [event_prefix]}}
-            
+
             # Set default time range if not specified (from settings)
             if not occurred_after and not occurred_before:
                 now = datetime.now(timezone.utc)
-                occurred_after = (now - timedelta(hours=settings.events_default_hours)).isoformat()
+                occurred_after = (now - settings.events_default_lookback).isoformat()
                 occurred_before = now.isoformat()
-            
+
             if occurred_after or occurred_before:
                 filter_dict["occurred"] = {}
                 if occurred_after:
                     filter_dict["occurred"]["since"] = occurred_after
                 if occurred_before:
                     filter_dict["occurred"]["until"] = occurred_before
-            
+
             # Make the API call to the events/filter endpoint
             response = await client._client.post(
                 "/events/filter",
-                json={
-                    "filter": filter_dict if filter_dict else None,
-                    "limit": limit
-                }
+                json={"filter": filter_dict if filter_dict else None, "limit": limit},
             )
             response.raise_for_status()
             data = response.json()
-            
-            # Return the events directly - no need to repack them
+
+            # Format events for better LLM consumption
+            formatted_events = []
+            for event in data.get("events", []):
+                formatted_event = _format_event(event)
+                formatted_events.append(formatted_event)
+
             return {
                 "success": True,
-                "count": len(data.get("events", [])),
-                "events": data.get("events", []),
+                "count": len(formatted_events),
+                "events": formatted_events,
                 "error": None,
                 "total": data.get("total", 0),
             }
@@ -144,22 +203,28 @@ async def run_deployment_by_id(
                 name=name,
                 tags=tags,
             )
-            
+
             flow_run_info: FlowRunInfo = {
                 "id": str(flow_run.id),
                 "name": flow_run.name,
-                "deployment_id": str(flow_run.deployment_id) if flow_run.deployment_id else None,
+                "deployment_id": str(flow_run.deployment_id)
+                if flow_run.deployment_id
+                else None,
                 "flow_id": str(flow_run.flow_id) if flow_run.flow_id else None,
                 "state": {
                     "type": flow_run.state.type.value if flow_run.state else None,
                     "name": flow_run.state.name if flow_run.state else None,
-                    "message": getattr(flow_run.state, 'message', None) if flow_run.state else None,
-                } if flow_run.state else None,
+                    "message": getattr(flow_run.state, "message", None)
+                    if flow_run.state
+                    else None,
+                }
+                if flow_run.state
+                else None,
                 "created": flow_run.created.isoformat() if flow_run.created else None,
                 "tags": flow_run.tags,
                 "parameters": flow_run.parameters,
             }
-            
+
             return {
                 "success": True,
                 "flow_run": flow_run_info,
@@ -190,7 +255,7 @@ async def run_deployment_by_name(
             # First, get the deployment by name
             deployment_name_full = f"{flow_name}/{deployment_name}"
             deployment = await client.read_deployment_by_name(deployment_name_full)
-            
+
             if not deployment:
                 return {
                     "success": False,
@@ -199,7 +264,7 @@ async def run_deployment_by_name(
                     "error": f"Deployment '{deployment_name_full}' not found",
                     "error_type": "NotFoundError",
                 }
-            
+
             # Create flow run from deployment
             flow_run = await client.create_flow_run_from_deployment(
                 deployment_id=deployment.id,
@@ -207,22 +272,28 @@ async def run_deployment_by_name(
                 name=name,
                 tags=tags,
             )
-            
+
             flow_run_info: FlowRunInfo = {
                 "id": str(flow_run.id),
                 "name": flow_run.name,
-                "deployment_id": str(flow_run.deployment_id) if flow_run.deployment_id else None,
+                "deployment_id": str(flow_run.deployment_id)
+                if flow_run.deployment_id
+                else None,
                 "flow_id": str(flow_run.flow_id) if flow_run.flow_id else None,
                 "state": {
                     "type": flow_run.state.type.value if flow_run.state else None,
                     "name": flow_run.state.name if flow_run.state else None,
-                    "message": getattr(flow_run.state, 'message', None) if flow_run.state else None,
-                } if flow_run.state else None,
+                    "message": getattr(flow_run.state, "message", None)
+                    if flow_run.state
+                    else None,
+                }
+                if flow_run.state
+                else None,
                 "created": flow_run.created.isoformat() if flow_run.created else None,
                 "tags": flow_run.tags,
                 "parameters": flow_run.parameters,
             }
-            
+
             return {
                 "success": True,
                 "flow_run": flow_run_info,

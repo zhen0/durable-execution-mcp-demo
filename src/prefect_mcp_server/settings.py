@@ -1,5 +1,7 @@
 """Settings for Prefect MCP server."""
 
+from datetime import timedelta
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -18,9 +20,9 @@ class Settings(BaseSettings):
         default=50,
         description="Maximum number of events to fetch by default"
     )
-    events_default_hours: int = Field(
-        default=1,
-        description="Default number of hours to look back for events"
+    events_default_lookback: timedelta = Field(
+        default=timedelta(hours=1),
+        description="Default time window to look back for events"
     )
 
 

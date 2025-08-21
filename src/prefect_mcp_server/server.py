@@ -30,8 +30,8 @@ async def list_deployments() -> DeploymentsResult:
 async def get_recent_events() -> EventsResult:
     """Get recent events from the Prefect instance.
     
-    Returns recent events as a snapshot in time. This is a read-only
-    operation that queries the Prefect events API.
+    Returns recent events with key fields extracted for easy analysis.
+    This is a read-only snapshot of recent activity.
     """
     return await _prefect_client.fetch_events(
         limit=settings.events_default_limit
@@ -39,6 +39,47 @@ async def get_recent_events() -> EventsResult:
 
 
 # Tools - actions that modify state
+@mcp.tool
+async def read_events(
+    event_type_prefix: Annotated[
+        str | None,
+        Field(description="Filter events by type prefix (e.g., 'prefect.flow-run', 'prefect.deployment')")
+    ] = None,
+    limit: Annotated[
+        int,
+        Field(description="Maximum number of events to return", ge=1, le=500)
+    ] = 50,
+    occurred_after: Annotated[
+        str | None,
+        Field(description="ISO 8601 timestamp to filter events after (e.g., '2024-01-01T00:00:00Z')")
+    ] = None,
+    occurred_before: Annotated[
+        str | None,
+        Field(description="ISO 8601 timestamp to filter events before (e.g., '2024-01-02T00:00:00Z')")
+    ] = None,
+) -> EventsResult:
+    """Read and filter events from the Prefect instance.
+    
+    Provides a structured view of events with filtering capabilities.
+    
+    Common event type prefixes:
+    - prefect.flow-run: Flow run lifecycle events
+    - prefect.deployment: Deployment-related events
+    - prefect.work-queue: Work queue events
+    - prefect.agent: Agent events
+    
+    Examples:
+        - Recent flow run events: read_events(event_type_prefix="prefect.flow-run")
+        - Specific time range: read_events(occurred_after="2024-01-01T00:00:00Z", occurred_before="2024-01-02T00:00:00Z")
+    """
+    return await _prefect_client.fetch_events(
+        limit=limit,
+        event_prefix=event_type_prefix,
+        occurred_after=occurred_after,
+        occurred_before=occurred_before,
+    )
+
+
 @mcp.tool
 async def run_deployment_by_name(
     flow_name: Annotated[
