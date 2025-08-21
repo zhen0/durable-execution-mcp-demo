@@ -66,6 +66,35 @@ class FlowRunInfo(TypedDict):
     parameters: dict[str, Any] | None
 
 
+class FlowRunStats(TypedDict):
+    """Statistics about flow runs."""
+    
+    total: int
+    failed: int
+    cancelled: int
+    completed: int
+    running: int
+    pending: int
+
+
+class WorkPoolInfo(TypedDict):
+    """Information about a work pool."""
+    
+    name: str
+    type: str
+    is_paused: bool
+    status: str | None
+
+
+class DashboardResult(TypedDict):
+    """Dashboard overview of Prefect instance."""
+    
+    success: bool
+    flow_runs: FlowRunStats
+    active_work_pools: list[WorkPoolInfo]
+    error: str | None
+
+
 class RunDeploymentResult(TypedDict):
     """Result of running a deployment."""
     

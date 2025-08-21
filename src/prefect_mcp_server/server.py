@@ -8,6 +8,7 @@ from pydantic import Field
 from prefect_mcp_server import _prefect_client
 from prefect_mcp_server.settings import settings
 from prefect_mcp_server.types import (
+    DashboardResult,
     DeploymentsResult,
     EventsResult,
     RunDeploymentResult,
@@ -17,6 +18,15 @@ mcp = FastMCP("Prefect MCP Server")
 
 
 # Resources - read-only operations
+@mcp.resource("prefect://dashboard")
+async def get_dashboard() -> DashboardResult:
+    """Get a high-level dashboard overview of the Prefect instance.
+    
+    Returns current flow run statistics and work pool status.
+    """
+    return await _prefect_client.fetch_dashboard()
+
+
 @mcp.resource("prefect://deployments/list")
 async def list_deployments() -> DeploymentsResult:
     """List all deployments in the Prefect instance.
@@ -24,18 +34,6 @@ async def list_deployments() -> DeploymentsResult:
     Returns deployment information including name, flow name, schedule, and tags.
     """
     return await _prefect_client.fetch_deployments()
-
-
-@mcp.resource("prefect://events/recent") 
-async def get_recent_events() -> EventsResult:
-    """Get recent events from the Prefect instance.
-    
-    Returns recent events with key fields extracted for easy analysis.
-    This is a read-only snapshot of recent activity.
-    """
-    return await _prefect_client.fetch_events(
-        limit=settings.events_default_limit
-    )
 
 
 # Tools - actions that modify state
