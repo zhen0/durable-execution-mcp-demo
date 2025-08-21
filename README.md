@@ -1,134 +1,86 @@
 # prefect-mcp-server
 
-A [FastMCP](https://github.com/jlowin/fastmcp) server for interacting with [Prefect](https://prefect.io) deployments and events through the Model Context Protocol.
+a [FastMCP](https://github.com/jlowin/fastmcp) server for interacting with [`prefect`](https://github.com/prefecthq/prefect) resources.
 
 ## quick start
 
 ```bash
-# clone and install
-git clone https://github.com/prefecthq/prefect-mcp-server.git
-cd prefect-mcp-server
-uv sync
-
-# run the server  
-uv run -m prefect_mcp_server
-
 # from github
-uv run git+https://github.com/prefecthq/prefect-mcp-server.git
+uvx prefect-mcp-server@git+https://github.com/prefecthq/prefect-mcp-server.git
+```
+
+```bash
+# clone and install
+gh repo clone prefecthq/prefect-mcp-server && cd prefect-mcp-server
+uv run prefect-mcp-server
 ```
 
 ## features
 
-<details>
-<summary><b>📚 resources</b> - read deployment and event data</summary>
-
+**resources** - read deployment and event data
 - `prefect://deployments/list` - list all deployments with their details
 - `prefect://events/recent` - get recent events from the prefect instance
 
-</details>
-
-<details>
-<summary><b>🔧 tools</b> - trigger deployments and query events</summary>
-
+**tools** - trigger deployments and query events
 - `run_deployment` - run a deployment by id
 - `run_deployment_by_name` - run a deployment by flow/deployment name  
 - `read_events` - read events with filtering options
 
-</details>
-
 ## installation
 
-<details open>
-<summary><b>from github</b></summary>
-
 ```bash
+# from github
 uv add prefect-mcp-server@git+https://github.com/prefecthq/prefect-mcp-server.git
-```
 
-</details>
-
-<details>
-<summary><b>from source</b></summary>
-
-```bash
-git clone https://github.com/prefecthq/prefect-mcp-server.git
-cd prefect-mcp-server
+# or from source
+gh repo clone prefecthq/prefect-mcp-server && cd prefect-mcp-server
 uv sync
 ```
 
-</details>
-
 ## configuration
 
-<details open>
-<summary><b>environment variables</b></summary>
-
-The Prefect SDK reads these directly from your environment:
+the prefect sdk reads these directly from your environment:
 
 **required:**
 - `PREFECT_API_URL` - url of your prefect server or cloud workspace
 - `PREFECT_API_KEY` - api key for prefect cloud (not required for open source server)
 
-**optional server settings:**
+**optional:**
 - `DEPLOYMENTS_DEFAULT_LIMIT` - default limit for deployments list (default: 100)
 - `EVENTS_DEFAULT_LIMIT` - default limit for events list (default: 50)
 
-<details>
-<summary>prefect cloud setup</summary>
-
 ```bash
+# prefect cloud
 export PREFECT_API_URL="https://api.prefect.cloud/api/accounts/[ACCOUNT_ID]/workspaces/[WORKSPACE_ID]"
 export PREFECT_API_KEY="your-api-key"
-```
 
-</details>
-
-<details>
-<summary>local prefect server setup</summary>
-
-```bash
+# local prefect server
 export PREFECT_API_URL="http://localhost:4200/api"
 ```
 
-</details>
-
-</details>
-
 ## usage
 
-<details open>
-<summary><b>with claude code</b></summary>
-
-Install from source using the FastMCP CLI:
+### with claude code
 
 ```bash
-# clone and install
-git clone https://github.com/prefecthq/prefect-mcp-server.git
-cd prefect-mcp-server
-
-# install to claude code
-fastmcp install claude-code src/prefect_mcp_server/server.py \
-  --env PREFECT_API_URL=your-url \
-  --env PREFECT_API_KEY=your-key
+# add to claude code
+claude mcp add prefect \
+  -e PREFECT_API_URL=your-url \
+  -e PREFECT_API_KEY=your-key \
+  -- uvx prefect-mcp-server@git+https://github.com/prefecthq/prefect-mcp-server.git
 ```
 
-</details>
-
-<details>
-<summary><b>standalone server</b></summary>
+### standalone server
 
 ```bash
 # as a python module
-uv run -m prefect_mcp_server
+uv run prefect-mcp-server
 
 # or using fastmcp cli
 uv run fastmcp run src/prefect_mcp_server/server.py
 ```
 
-</details>
-
-<details>
-<summary><b>programmatic usage</b></summary>
+### programmatic usage
 
 ```python
 from fastmcp import Client
@@ -151,24 +103,14 @@ async def main():
         )
 ```
 
-</details>
-
 ## examples
 
-<details>
-<summary><b>list deployments</b></summary>
-
 ```python
+# list deployments
 deployments = await client.read_resource("prefect://deployments/list")
 # returns: {"success": true, "count": 3, "deployments": [...]}
-```
 
-</details>
-
-<details>
-<summary><b>run deployment by id</b></summary>
-
-```python
+# run deployment by id  
 result = await client.call_tool(
     "run_deployment",
     {
@@ -178,15 +120,8 @@ result = await client.call_tool(
         "tags": ["mcp", "automated"]
     }
 )
-# returns: {"success": true, "flow_run": {...}}
-```
 
-</details>
-
-<details>
-<summary><b>run deployment by name</b></summary>
-
-```python
+# run deployment by name
 result = await client.call_tool(
     "run_deployment_by_name",
     {
@@ -195,15 +130,8 @@ result = await client.call_tool(
         "parameters": {"key": "value"}
     }
 )
-# returns: {"success": true, "flow_run": {...}, "deployment": {...}}
-```
 
-</details>
-
-<details>
-<summary><b>read events</b></summary>
-
-```python
+# read events
 events = await client.call_tool(
     "read_events",
     {
@@ -212,26 +140,25 @@ events = await client.call_tool(
         "occurred_after": "2024-01-01T00:00:00Z"
     }
 )
-# returns: {"success": true, "count": 10, "events": [...]}
 ```
-
-</details>
 
 ## development
 
 <details>
-<summary><b>setup</b></summary>
+<summary>setup & testing</summary>
 
 ```bash
 # clone the repo
-git clone https://github.com/prefecthq/prefect-mcp-server.git
-cd prefect-mcp-server
+gh repo clone prefecthq/prefect-mcp-server && cd prefect-mcp-server
 
 # install with dev dependencies
 uv sync --dev
 
-# run tests
+# run tests (uses ephemeral prefect database via prefect_test_harness)
 uv run pytest
+
+# run with coverage
+uv run pytest --cov=src --cov-report=html
 
 # run with debug logging
 DEPLOYMENTS_DEFAULT_LIMIT=10 uv run fastmcp dev src/prefect_mcp_server/server.py
@@ -239,26 +166,7 @@ DEPLOYMENTS_DEFAULT_LIMIT=10 uv run fastmcp dev src/prefect_mcp_server/server.py
 
 </details>
 
-<details>
-<summary><b>testing</b></summary>
-
-Tests use an ephemeral prefect database via `prefect_test_harness`:
-
-```bash
-# run all tests
-uv run pytest
-
-# run with coverage
-uv run pytest --cov=src --cov-report=html
-
-# run specific test
-uv run pytest tests/test_server.py::test_run_deployment_with_valid_id -xvs
-```
-
-</details>
-
 ## links
 
-- [FastMCP](https://github.com/jlowin/fastmcp) - the framework powering this server
-- [Prefect](https://prefect.io) - modern workflow orchestration
-- [Model Context Protocol](https://modelcontextprotocol.io) - the protocol specification
+- [FastMCP](https://github.com/jlowin/fastmcp) - the easiest way to build an MCP server
+- [Prefect](https://prefect.io) - the easiest way to build workflows
