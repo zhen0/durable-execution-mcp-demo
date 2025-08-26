@@ -5,14 +5,109 @@ from uuid import UUID
 
 import prefect.main  # noqa: F401 - Import to resolve Pydantic forward references
 from prefect.client.orchestration import get_client
+from prefect.client.schemas.filters import DeploymentFilter, DeploymentFilterId
 
 from prefect_mcp_server.settings import settings
 from prefect_mcp_server.types import (
+    DeploymentDetail,
     DeploymentInfo,
+    DeploymentResult,
     DeploymentsResult,
     FlowRunInfo,
     RunDeploymentResult,
 )
+
+
+async def get_deployment(deployment_id: str) -> DeploymentResult:
+    """Get detailed information about a specific deployment."""
+    try:
+        async with get_client() as client:
+            deployment = await client.read_deployment(UUID(deployment_id))
+
+            if not deployment:
+                return {
+                    "success": False,
+                    "deployment": None,
+                    "error": f"Deployment '{deployment_id}' not found",
+                }
+
+            # Get recent flow runs for this deployment
+            deployment_filter = DeploymentFilter(
+                id=DeploymentFilterId(any_=[UUID(deployment_id)])
+            )
+            flow_runs = await client.read_flow_runs(
+                deployment_filter=deployment_filter,
+                limit=10,
+                sort="START_TIME_DESC",
+            )
+
+            # Transform recent runs to summary format
+            recent_run_summaries = []
+            for run in flow_runs:
+                recent_run_summaries.append(
+                    {
+                        "id": str(run.id),
+                        "name": run.name,
+                        "state": run.state.name if run.state else None,
+                        "created": run.created.isoformat() if run.created else None,
+                        "start_time": run.start_time.isoformat()
+                        if run.start_time
+                        else None,
+                    }
+                )
+
+            # Transform to DeploymentDetail format
+            detail: DeploymentDetail = {
+                "id": str(deployment.id),
+                "name": deployment.name,
+                "description": deployment.description,
+                "flow_id": str(deployment.flow_id) if deployment.flow_id else None,
+                "flow_name": getattr(deployment, "flow_name", None),
+                "tags": getattr(deployment, "tags", []),
+                "parameters": deployment.parameters or {},
+                "parameter_openapi_schema": deployment.parameter_openapi_schema or {},
+                "infrastructure_overrides": deployment.job_variables or {},
+                "work_pool_name": deployment.work_pool_name,
+                "work_queue_name": deployment.work_queue_name,
+                "schedules": [],
+                "is_schedule_active": getattr(deployment, "is_schedule_active", None),
+                "created": deployment.created.isoformat()
+                if deployment.created
+                else None,
+                "updated": deployment.updated.isoformat()
+                if deployment.updated
+                else None,
+                "recent_runs": recent_run_summaries,
+                "paused": deployment.paused if hasattr(deployment, "paused") else False,
+                "enforce_parameter_schema": deployment.enforce_parameter_schema
+                if hasattr(deployment, "enforce_parameter_schema")
+                else False,
+            }
+
+            # Add schedule info if available
+            if hasattr(deployment, "schedules") and deployment.schedules:
+                detail["schedules"] = [
+                    {
+                        "active": getattr(schedule, "active", None),
+                        "schedule": str(schedule.schedule)
+                        if hasattr(schedule, "schedule")
+                        else None,
+                    }
+                    for schedule in deployment.schedules
+                ]
+
+            return {
+                "success": True,
+                "deployment": detail,
+                "error": None,
+            }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "deployment": None,
+            "error": f"Error fetching deployment: {str(e)}",
+        }
 
 
 async def fetch_deployments() -> DeploymentsResult:
@@ -25,6 +120,29 @@ async def fetch_deployments() -> DeploymentsResult:
 
             deployment_list: list[DeploymentInfo] = []
             for deployment in deployments:
+                # Extract parameter info with types from the schema for concise display
+                parameter_summary = []
+                schema = getattr(deployment, "parameter_openapi_schema", {})
+                if schema and isinstance(schema, dict):
+                    properties = schema.get("properties", {})
+                    required = schema.get("required", [])
+                    for param_name, param_info in properties.items():
+                        # Get the type directly from OpenAPI schema
+                        param_type = param_info.get("type", "any")
+
+                        # Check if required (in required list and no default)
+                        is_required = (
+                            param_name in required and "default" not in param_info
+                        )
+
+                        # Build parameter description
+                        if is_required:
+                            parameter_summary.append(
+                                f"{param_name}: {param_type} (required)"
+                            )
+                        else:
+                            parameter_summary.append(f"{param_name}: {param_type}")
+
                 deployment_info: DeploymentInfo = {
                     "id": str(deployment.id),
                     "name": deployment.name,
@@ -41,6 +159,7 @@ async def fetch_deployments() -> DeploymentsResult:
                     if hasattr(deployment, "updated") and deployment.updated
                     else None,
                     "schedules": None,
+                    "parameter_summary": parameter_summary,
                 }
 
                 # Add schedule info if available

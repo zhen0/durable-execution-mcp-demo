@@ -9,10 +9,12 @@ from pydantic import Field
 from prefect_mcp_server import _prefect_client
 from prefect_mcp_server.types import (
     DashboardResult,
+    DeploymentResult,
     DeploymentsResult,
     EventsResult,
     FlowRunResult,
     RunDeploymentResult,
+    TaskRunResult,
 )
 
 mcp = FastMCP("Prefect MCP Server")
@@ -191,3 +193,48 @@ async def run_deployment_by_name(
         name=name,
         tags=tags,
     )
+
+
+@mcp.tool
+async def get_deployment(
+    deployment_id: Annotated[
+        str,
+        Field(
+            description="The ID of the deployment to retrieve",
+            examples=["068adce4-aeec-7e9b-8000-97b7feeb70fa"],
+        ),
+    ],
+) -> DeploymentResult:
+    """Get detailed information about a deployment.
+
+    Retrieves comprehensive deployment details including parameters,
+    infrastructure overrides, schedules, and recent flow run history.
+    Essential for debugging parameter mismatches and configuration issues.
+
+    Examples:
+        - Get deployment details: get_deployment("068adce4-aeec-7e9b-8000-97b7feeb70fa")
+    """
+    return await _prefect_client.get_deployment(deployment_id)
+
+
+@mcp.tool
+async def get_task_run(
+    task_run_id: Annotated[
+        str,
+        Field(
+            description="The ID of the task run to retrieve",
+            examples=["068adce4-aeec-7e9b-8000-97b7feeb70fa"],
+        ),
+    ],
+) -> TaskRunResult:
+    """Get detailed information about a specific task run.
+
+    Retrieves comprehensive task run details including state, cache information,
+    and retry counts. Note that 'task_inputs' contains dependency tracking
+    information (upstream task relationships), not the actual parameter values
+    passed to the task.
+
+    Examples:
+        - Get task run details: get_task_run("068adce4-aeec-7e9b-8000-97b7feeb70fa")
+    """
+    return await _prefect_client.get_task_run(task_run_id)
