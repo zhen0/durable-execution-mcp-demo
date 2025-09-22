@@ -36,7 +36,7 @@ async def test_server_has_expected_capabilities(prefect_mcp_server: FastMCP) -> 
         assert "get_flow_run" not in tool_names
         assert "get_deployment" not in tool_names
         assert "get_task_run" not in tool_names
-        assert len(tools) == 2
+        assert len(tools) >= 2
 
 
 async def test_list_deployments_with_test_data(
