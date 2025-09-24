@@ -36,8 +36,9 @@ lint:
 typecheck:
     uv run --frozen ty check
 
-evals:
-    uv run --frozen pytest -xvs evals
+# Run evals with optional pytest arguments
+evals *args:
+    uv run --frozen pytest -xvs evals {{args}}
 
 # Copy context to clipboard
 copy-context:
