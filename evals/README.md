@@ -1,4 +1,4 @@
-# scenarios
+# evals
 
 Scenario-focused tests (evals) for the Prefect MCP server to verify that AI agents can properly interact with Prefect workspaces through the MCP protocol.
 
@@ -6,7 +6,7 @@ Scenario-focused tests (evals) for the Prefect MCP server to verify that AI agen
 
 from root of the repo, run:
 ```bash
-just scenarios
+just evals
 ```
 
 ## about evals
@@ -18,7 +18,7 @@ evals (evaluation scenarios) test whether ai agents hooked up to the prefect mcp
 
 ## running the suite
 
-From the repo root, run `just scenarios run` (or `cd scenarios && uv run pytest`).
+From the repo root, run `just evals` (or `uv run pytest evals`).
 Each test bootstraps an ephemeral Prefect API via `prefect_test_harness`, mutates it into the
 required state, and drives the `prefect_mcp_server` through Pydantic AI.
 
@@ -32,7 +32,7 @@ required state, and drives the `prefect_mcp_server` through Pydantic AI.
 ## adding new evals
 
 1. create an issue describing the expectation (see [#27](https://github.com/PrefectHQ/prefect-mcp-server/issues/27))
-2. implement the test in `tests/evals/`
+2. implement the test in `evals/`
 3. update this readme with the new eval
 
 ## related
