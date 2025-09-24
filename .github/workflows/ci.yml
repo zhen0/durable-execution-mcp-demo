@@ -77,6 +77,8 @@ jobs:
         run: just evals
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          LOGFIRE_TOKEN: ${{ secrets.LOGFIRE_TOKEN }}
+          ENVIRONMENT: ci
 
   lint:
     timeout-minutes: 2

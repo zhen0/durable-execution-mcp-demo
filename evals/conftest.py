@@ -3,6 +3,7 @@ from collections.abc import AsyncGenerator, Generator
 from typing import Any
 from unittest.mock import AsyncMock
 
+import logfire
 import pytest
 from dotenv import load_dotenv
 from prefect import get_client
@@ -11,6 +12,11 @@ from prefect.settings import get_current_settings
 from prefect.testing.utilities import prefect_test_harness
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.mcp import CallToolFunc, MCPServer, MCPServerStdio, ToolResult
+
+logfire.configure(
+    send_to_logfire="if-token-present", environment=os.getenv("ENVIRONMENT") or "local"
+)
+logfire.instrument_pydantic_ai()
 
 
 @pytest.fixture
@@ -54,6 +60,7 @@ def prefect_mcp_server(tool_call_spy: AsyncMock) -> Generator[MCPServer, None, N
             args=["run", "-m", "prefect_mcp_server"],
             env={"PREFECT_API_URL": api_url} if api_url else None,
             process_tool_call=tool_call_spy,
+            max_retries=3,
         )
 
 
