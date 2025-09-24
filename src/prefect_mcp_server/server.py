@@ -64,8 +64,8 @@ def debug_deployment(
     return create_deployment_debug_prompt(deployment_id=deployment_id)
 
 
-# Resources - read-only operations
-@mcp.resource("prefect://identity")
+# Tools
+@mcp.tool
 async def get_identity() -> IdentityResult:
     """Get identity and connection information for the current Prefect instance.
 
@@ -75,7 +75,7 @@ async def get_identity() -> IdentityResult:
     return await _prefect_client.get_identity()
 
 
-@mcp.resource("prefect://dashboard")
+@mcp.tool
 async def get_dashboard() -> DashboardResult:
     """Get a high-level dashboard overview of the Prefect instance.
 
@@ -84,83 +84,233 @@ async def get_dashboard() -> DashboardResult:
     return await _prefect_client.fetch_dashboard()
 
 
-@mcp.resource("prefect://deployments/list")
-async def list_deployments() -> DeploymentsResult:
-    """List all deployments in the Prefect instance.
+@mcp.tool
+async def get_deployments(
+    deployment_id: Annotated[
+        str | None,
+        Field(
+            description="UUID of a specific deployment to retrieve",
+            examples=["068adce4-aeec-7e9b-8000-97b7feeb70fa"],
+        ),
+    ] = None,
+    filter: Annotated[
+        dict[str, Any] | None,
+        Field(
+            description="JSON filter object for advanced querying. Supports all Prefect DeploymentFilter fields.",
+            examples=[
+                {"name": {"like_": "prod-%"}},
+                {"tags": {"all_": ["production"]}, "is_schedule_active": {"eq_": True}},
+                {"work_queue_name": {"any_": ["critical", "default"]}},
+            ],
+        ),
+    ] = None,
+    limit: Annotated[
+        int, Field(description="Maximum number of deployments to return", ge=1, le=200)
+    ] = 50,
+) -> DeploymentsResult | DeploymentResult:
+    """Get deployments with optional filters.
 
-    Returns deployment information including name, flow name, schedule, and tags.
-    """
-    return await _prefect_client.fetch_deployments()
+    Returns a single deployment with full details if deployment_id is provided,
+    or a list of deployments matching the filters otherwise.
 
-
-# Resources - read-only operations (continued)
-@mcp.resource("prefect://flow-runs/{flow_run_id}")
-async def get_flow_run(flow_run_id: str) -> FlowRunResult:
-    """Get detailed information about a flow run.
-
-    Retrieves comprehensive flow run details including state, parameters,
-    timestamps, and other metadata.
+    Filter operators:
+    - any_: Match any value in list
+    - all_: Match all values
+    - like_: SQL LIKE pattern matching
+    - not_any_: Exclude values
+    - is_null_: Check for null/not null
+    - eq_/ne_: Equality comparisons
 
     Examples:
-        - Basic: prefect://flow-runs/068adce4-aeec-7e9b-8000-97b7feeb70fa
+        - Get specific deployment: get_deployments(deployment_id="...")
+        - List all deployments: get_deployments()
+        - Active deployments: get_deployments(filter={"is_schedule_active": {"eq_": True}})
+        - Production deployments: get_deployments(filter={"tags": {"all_": ["production"]}})
     """
-    return await _prefect_client.get_flow_run(flow_run_id, include_logs=False)
+    return await _prefect_client.get_deployments(
+        deployment_id=deployment_id,
+        filter=filter,
+        limit=limit,
+    )
 
 
-@mcp.resource("prefect://flow-runs/{flow_run_id}/logs")
-async def get_flow_run_logs(flow_run_id: str) -> LogsResult:
+@mcp.tool
+async def get_flow_runs(
+    flow_run_id: Annotated[
+        str | None,
+        Field(
+            description="UUID of a specific flow run to retrieve",
+            examples=["068adce4-aeec-7e9b-8000-97b7feeb70fa"],
+        ),
+    ] = None,
+    filter: Annotated[
+        dict[str, Any] | None,
+        Field(
+            description="JSON filter object for advanced querying. Supports all Prefect FlowRunFilter fields.",
+            examples=[
+                {"state": {"type": {"any_": ["FAILED", "CRASHED"]}}},
+                {
+                    "tags": {"all_": ["production"]},
+                    "deployment_id": {"is_null_": False},
+                },
+                {
+                    "name": {"like_": "etl-%"},
+                    "start_time": {"after_": "2024-01-01T00:00:00Z"},
+                },
+            ],
+        ),
+    ] = None,
+    limit: Annotated[
+        int, Field(description="Maximum number of flow runs to return", ge=1, le=200)
+    ] = 50,
+) -> FlowRunResult | dict[str, Any]:
+    """Get flow runs with optional filters.
+
+    Returns a single flow run with full details if flow_run_id is provided,
+    or a list of flow runs matching the filters otherwise.
+
+    Filter operators:
+    - any_: Match any value in list
+    - all_: Match all values
+    - like_: SQL LIKE pattern matching
+    - not_any_: Exclude values
+    - is_null_: Check for null/not null
+    - after_/before_: Time comparisons
+    - gt_/gte_/lt_/lte_: Numeric comparisons
+
+    Examples:
+        - Get specific run: get_flow_runs(flow_run_id="...")
+        - List recent runs: get_flow_runs()
+        - Failed runs: get_flow_runs(filter={"state": {"type": {"any_": ["FAILED"]}}})
+        - Production runs: get_flow_runs(filter={"tags": {"all_": ["production"]}})
+    """
+    return await _prefect_client.get_flow_runs(
+        flow_run_id=flow_run_id,
+        filter=filter,
+        limit=limit,
+    )
+
+
+@mcp.tool
+async def get_flow_run_logs(
+    flow_run_id: Annotated[
+        str,
+        Field(
+            description="UUID of the flow run to get logs for",
+            examples=["068adce4-aeec-7e9b-8000-97b7feeb70fa"],
+        ),
+    ],
+    limit: Annotated[
+        int, Field(description="Maximum number of log entries to return", ge=1, le=1000)
+    ] = 100,
+) -> LogsResult:
     """Get execution logs for a flow run.
 
-    Retrieves up to 100 log entries from the flow run execution,
+    Retrieves log entries from the flow run execution,
     including timestamps, log levels, and messages.
 
     Examples:
-        - Get logs: prefect://flow-runs/068adce4-aeec-7e9b-8000-97b7feeb70fa/logs
+        - Get logs: get_flow_run_logs(flow_run_id="...")
+        - Get more logs: get_flow_run_logs(flow_run_id="...", limit=500)
     """
-    return await _prefect_client.get_flow_run_logs(flow_run_id, limit=100)
+    return await _prefect_client.get_flow_run_logs(flow_run_id, limit=limit)
 
 
-@mcp.resource("prefect://deployments/{deployment_id}")
-async def get_deployment(deployment_id: str) -> DeploymentResult:
-    """Get detailed information about a deployment.
+@mcp.tool
+async def get_task_runs(
+    task_run_id: Annotated[
+        str | None,
+        Field(
+            description="UUID of a specific task run to retrieve",
+            examples=["068adce4-aeec-7e9b-8000-97b7feeb70fa"],
+        ),
+    ] = None,
+    filter: Annotated[
+        dict[str, Any] | None,
+        Field(
+            description="JSON filter object for advanced querying. Supports all Prefect TaskRunFilter fields.",
+            examples=[
+                {"state": {"type": {"any_": ["FAILED", "CRASHED"]}}},
+                {"name": {"like_": "%process%"}},
+                {"flow_run_id": {"any_": ["<uuid1>", "<uuid2>"]}},
+            ],
+        ),
+    ] = None,
+    limit: Annotated[
+        int, Field(description="Maximum number of task runs to return", ge=1, le=200)
+    ] = 50,
+) -> TaskRunResult | dict[str, Any]:
+    """Get task runs with optional filters.
 
-    Retrieves comprehensive deployment details including parameters,
-    infrastructure overrides, schedules, and recent flow run history.
-    Essential for debugging parameter mismatches and configuration issues.
-
-    Examples:
-        - Get deployment details: prefect://deployments/068adce4-aeec-7e9b-8000-97b7feeb70fa
-    """
-    return await _prefect_client.get_deployment(deployment_id)
-
-
-@mcp.resource("prefect://task-runs/{task_run_id}")
-async def get_task_run(task_run_id: str) -> TaskRunResult:
-    """Get detailed information about a specific task run.
-
-    Retrieves comprehensive task run details including state, cache information,
-    and retry counts. Note that 'task_inputs' contains dependency tracking
+    Returns a single task run with full details if task_run_id is provided,
+    or a list of task runs matching the filters otherwise.
+    Note that 'task_inputs' contains dependency tracking
     information (upstream task relationships), not the actual parameter values
     passed to the task.
 
+    Filter operators:
+    - any_: Match any value in list
+    - like_: SQL LIKE pattern matching
+    - not_any_: Exclude values
+    - is_null_: Check for null/not null
+
     Examples:
-        - Get task run details: prefect://task-runs/068adce4-aeec-7e9b-8000-97b7feeb70fa
+        - Get specific task: get_task_runs(task_run_id="...")
+        - Failed tasks: get_task_runs(filter={"state": {"type": {"any_": ["FAILED"]}}})
+        - Tasks by pattern: get_task_runs(filter={"name": {"like_": "%process%"}})
     """
-    return await _prefect_client.get_task_run(task_run_id)
+    return await _prefect_client.get_task_runs(
+        task_run_id=task_run_id,
+        filter=filter,
+        limit=limit,
+    )
 
 
-@mcp.resource("prefect://work-pools/{work_pool_name}")
-async def get_work_pool_details(work_pool_name: str) -> WorkPoolResult:
-    """Get detailed information about a work pool including concurrency limits.
+@mcp.tool
+async def get_work_pools(
+    work_pool_name: Annotated[
+        str | None,
+        Field(
+            description="Name of a specific work pool to retrieve",
+            examples=["test-pool", "kubernetes-pool"],
+        ),
+    ] = None,
+    filter: Annotated[
+        dict[str, Any] | None,
+        Field(
+            description="JSON filter object for advanced querying. Supports all Prefect WorkPoolFilter fields.",
+            examples=[
+                {"type": {"any_": ["kubernetes", "process"]}},
+                {"name": {"like_": "prod-%"}},
+            ],
+        ),
+    ] = None,
+    limit: Annotated[
+        int, Field(description="Maximum number of work pools to return", ge=1, le=200)
+    ] = 50,
+) -> WorkPoolResult | dict[str, Any]:
+    """Get work pools with optional filters.
 
+    Returns a single work pool with full details if work_pool_name is provided,
+    or a list of work pools matching the filters otherwise.
     Essential for debugging deployment issues related to flow runs being stuck
     or not starting. Shows work pool and queue concurrency limits, active workers,
     and configuration details.
 
+    Filter operators:
+    - any_: Match any value in list
+    - like_: SQL LIKE pattern matching
+
     Examples:
-        - Get work pool details: prefect://work-pools/test-pool
+        - Get specific pool: get_work_pools(work_pool_name="test-pool")
+        - List all pools: get_work_pools()
+        - Kubernetes pools: get_work_pools(filter={"type": {"any_": ["kubernetes"]}})
     """
-    return await _prefect_client.get_work_pool(work_pool_name)
+    return await _prefect_client.get_work_pools(
+        work_pool_name=work_pool_name,
+        filter=filter,
+        limit=limit,
+    )
 
 
 # Tools - actions that modify state

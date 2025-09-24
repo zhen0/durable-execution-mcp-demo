@@ -7,7 +7,6 @@ import prefect.main  # noqa: F401 - Import to resolve Pydantic forward reference
 from prefect.client.orchestration import get_client
 from prefect.client.schemas.filters import DeploymentFilter, DeploymentFilterId
 
-from prefect_mcp_server.settings import settings
 from prefect_mcp_server.types import (
     DeploymentDetail,
     DeploymentInfo,
@@ -110,14 +109,91 @@ async def get_deployment(deployment_id: str) -> DeploymentResult:
         }
 
 
-async def fetch_deployments() -> DeploymentsResult:
-    """Fetch all deployments from Prefect."""
+async def run_deployment_by_id(
+    deployment_id: str,
+    parameters: dict[str, Any] | None = None,
+    name: str | None = None,
+    tags: list[str] | None = None,
+) -> RunDeploymentResult:
+    """Run a deployment by its ID."""
     try:
         async with get_client() as client:
-            deployments = await client.read_deployments(
-                limit=settings.deployments_default_limit, offset=0
+            flow_run = await client.create_flow_run_from_deployment(
+                deployment_id=UUID(deployment_id),
+                parameters=parameters or {},
+                name=name,
+                tags=tags,
             )
 
+            flow_run_info: FlowRunInfo = {
+                "id": str(flow_run.id),
+                "name": flow_run.name,
+                "deployment_id": str(flow_run.deployment_id)
+                if flow_run.deployment_id
+                else None,
+                "flow_id": str(flow_run.flow_id) if flow_run.flow_id else None,
+                "state": {
+                    "type": flow_run.state.type.value if flow_run.state else None,
+                    "name": flow_run.state.name if flow_run.state else None,
+                    "message": getattr(flow_run.state, "message", None)
+                    if flow_run.state
+                    else None,
+                }
+                if flow_run.state
+                else None,
+                "created": flow_run.created.isoformat() if flow_run.created else None,
+                "tags": flow_run.tags,
+                "parameters": flow_run.parameters,
+            }
+
+            return {
+                "success": True,
+                "flow_run": flow_run_info,
+                "deployment": None,
+                "error": None,
+                "error_type": None,
+            }
+    except Exception as e:
+        return {
+            "success": False,
+            "flow_run": None,
+            "deployment": None,
+            "error": str(e),
+            "error_type": type(e).__name__,
+        }
+
+
+async def get_deployments(
+    deployment_id: str | None = None,
+    filter: dict[str, Any] | None = None,
+    limit: int = 50,
+) -> DeploymentsResult | DeploymentResult:
+    """Get deployments with optional filters.
+
+    If deployment_id is provided, returns a single deployment with full details.
+    Otherwise returns a list of deployments matching the filters.
+    """
+    # If we have a specific deployment ID, get detailed info for that one
+    if deployment_id:
+        return await get_deployment(deployment_id)
+
+    # Otherwise, list deployments with filters
+    try:
+        async with get_client() as client:
+            from prefect.client.schemas.filters import DeploymentFilter
+
+            # Build filter from JSON if provided
+            deployment_filter = None
+            if filter:
+                deployment_filter = DeploymentFilter.model_validate(filter)
+
+            # Fetch deployments
+            deployments = await client.read_deployments(
+                deployment_filter=deployment_filter,
+                limit=limit,
+            )
+
+            # Otherwise return list view
             deployment_list: list[DeploymentInfo] = []
             for deployment in deployments:
                 # Extract parameter info with types from the schema for concise display
@@ -188,60 +264,6 @@ async def fetch_deployments() -> DeploymentsResult:
             "count": 0,
             "deployments": [],
             "error": f"Failed to fetch deployments: {str(e)}",
-        }
-
-
-async def run_deployment_by_id(
-    deployment_id: str,
-    parameters: dict[str, Any] | None = None,
-    name: str | None = None,
-    tags: list[str] | None = None,
-) -> RunDeploymentResult:
-    """Run a deployment by its ID."""
-    try:
-        async with get_client() as client:
-            flow_run = await client.create_flow_run_from_deployment(
-                deployment_id=UUID(deployment_id),
-                parameters=parameters or {},
-                name=name,
-                tags=tags,
-            )
-
-            flow_run_info: FlowRunInfo = {
-                "id": str(flow_run.id),
-                "name": flow_run.name,
-                "deployment_id": str(flow_run.deployment_id)
-                if flow_run.deployment_id
-                else None,
-                "flow_id": str(flow_run.flow_id) if flow_run.flow_id else None,
-                "state": {
-                    "type": flow_run.state.type.value if flow_run.state else None,
-                    "name": flow_run.state.name if flow_run.state else None,
-                    "message": getattr(flow_run.state, "message", None)
-                    if flow_run.state
-                    else None,
-                }
-                if flow_run.state
-                else None,
-                "created": flow_run.created.isoformat() if flow_run.created else None,
-                "tags": flow_run.tags,
-                "parameters": flow_run.parameters,
-            }
-
-            return {
-                "success": True,
-                "flow_run": flow_run_info,
-                "deployment": None,
-                "error": None,
-                "error_type": None,
-            }
-    except Exception as e:
-        return {
-            "success": False,
-            "flow_run": None,
-            "deployment": None,
-            "error": str(e),
-            "error_type": type(e).__name__,
         }
 
 
