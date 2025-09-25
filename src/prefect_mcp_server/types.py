@@ -1,8 +1,29 @@
 """Type definitions for Prefect MCP server."""
 
-from typing import Any
+from typing import Annotated, Any
 
+from pydantic import Field
 from typing_extensions import TypedDict
+
+
+class GlobalConcurrencyLimitInfo(TypedDict):
+    """Global concurrency limit information."""
+
+    id: str
+    name: str
+    limit: int
+    active: bool
+    active_slots: int
+    slot_decay_per_second: float
+    over_limit: bool
+
+
+class GlobalConcurrencyLimitsResult(TypedDict):
+    """Result of listing global concurrency limits."""
+
+    success: bool
+    limits: list[GlobalConcurrencyLimitInfo]
+    error: str | None
 
 
 class DeploymentInfo(TypedDict):
@@ -164,13 +185,16 @@ class LogsResult(TypedDict):
 
 
 class FlowRunDetail(TypedDict):
-    """Detailed flow run information."""
+    """Detailed flow run information with inlined relationships."""
 
     id: str
     name: str | None
     flow_name: str | None
     state_type: str | None
-    state_name: str | None
+    state_name: Annotated[
+        str | None,
+        Field(description="Current state name. 'Late' means scheduled but not started"),
+    ]
     state_message: str | None
     created: str | None
     updated: str | None
@@ -183,6 +207,8 @@ class FlowRunDetail(TypedDict):
     work_queue_name: str | None
     infrastructure_pid: str | None
     parent_task_run_id: str | None
+    deployment: "DeploymentDetail | None"  # Inlined deployment details
+    work_pool: "WorkPoolDetail | None"  # Inlined work pool details
 
 
 class LogEntry(TypedDict):
@@ -235,6 +261,14 @@ class DeploymentDetail(TypedDict):
     recent_runs: list[dict[str, Any]]
     paused: bool
     enforce_parameter_schema: bool
+    concurrency_limit: int | None
+    applicable_concurrency_limits: Annotated[
+        list[GlobalConcurrencyLimitInfo],
+        Field(
+            description="Concurrency limits affecting this deployment. 'deployment:' prefix = this deployment, 'tag:' prefix = flows with matching tags. over_limit=true indicates exhaustion causing delays."
+        ),
+    ]
+    work_pool: "WorkPoolDetail | None"  # Inlined work pool details
 
 
 class DeploymentResult(TypedDict):

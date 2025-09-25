@@ -81,7 +81,66 @@ async def get_deployment(deployment_id: str) -> DeploymentResult:
                 "enforce_parameter_schema": deployment.enforce_parameter_schema
                 if hasattr(deployment, "enforce_parameter_schema")
                 else False,
+                "concurrency_limit": deployment.concurrency_limit,
+                "applicable_concurrency_limits": [],
+                "work_pool": None,  # Will be set below
             }
+
+            # Collect all applicable concurrency limits (deployment + tag-based)
+            applicable_limits = []
+
+            # Add deployment-specific global concurrency limit if present
+            if (
+                hasattr(deployment, "global_concurrency_limit")
+                and deployment.global_concurrency_limit
+            ):
+                gcl = deployment.global_concurrency_limit
+                applicable_limits.append(
+                    {
+                        "id": str(gcl.id),
+                        "name": gcl.name,
+                        "limit": gcl.limit,
+                        "active": gcl.active,
+                        "active_slots": gcl.active_slots,
+                        "slot_decay_per_second": gcl.slot_decay_per_second,
+                        "over_limit": gcl.active_slots >= gcl.limit,
+                    }
+                )
+
+            # Get tag-based concurrency limits
+            all_gcls = await client.read_global_concurrency_limits(limit=100, offset=0)
+            deployment_tags = getattr(deployment, "tags", [])
+
+            # Find GCLs that match deployment tags
+            for gcl in all_gcls:
+                if gcl.name.startswith("tag:"):
+                    tag_name = gcl.name.removeprefix("tag:")
+                    if tag_name in deployment_tags:
+                        applicable_limits.append(
+                            {
+                                "id": str(gcl.id),
+                                "name": gcl.name,
+                                "limit": gcl.limit,
+                                "active": gcl.active,
+                                "active_slots": gcl.active_slots,
+                                "slot_decay_per_second": gcl.slot_decay_per_second,
+                                "over_limit": gcl.active_slots >= gcl.limit,
+                            }
+                        )
+
+            detail["applicable_concurrency_limits"] = applicable_limits
+
+            # Inline work pool information if available
+            if deployment.work_pool_name:
+                from prefect_mcp_server._prefect_client.work_pools import get_work_pool
+
+                work_pool_result = await get_work_pool(deployment.work_pool_name)
+                if work_pool_result["success"]:
+                    detail["work_pool"] = work_pool_result["work_pool"]
+                else:
+                    detail["work_pool"] = None
+            else:
+                detail["work_pool"] = None
 
             # Add schedule info if available
             if hasattr(deployment, "schedules") and deployment.schedules:
