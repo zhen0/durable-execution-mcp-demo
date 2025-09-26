@@ -1,9 +1,5 @@
 name: CI
 
-env:
-  # Enable colored output
-  PY_COLORS: 1
-
 on:
   push:
     branches: ["main"]
