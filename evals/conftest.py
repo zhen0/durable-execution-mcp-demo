@@ -1,6 +1,25 @@
+"""Eval test configuration and fixtures.
+
+Environment Variables:
+    MODEL_PROVIDER: Model provider to use (default: "anthropic")
+        - "anthropic": Use Anthropic Claude models (requires ANTHROPIC_API_KEY)
+        - "openai": Use OpenAI models (requires OPENAI_API_KEY)
+
+    SIMPLE_AGENT_MODEL: Override default simple agent model
+        - Default for anthropic: "anthropic:claude-3-5-sonnet-latest"
+        - Default for openai: "openai:gpt-4o"
+
+    REASONING_AGENT_MODEL: Override default reasoning agent model
+        - Default for anthropic: "anthropic:claude-sonnet-4-20250514"
+        - Default for openai: "openai:gpt-4.1"
+
+    EVALUATOR_MODEL: Override default evaluator model (default: "anthropic:claude-opus-4-1-20250805")
+"""
+
 import os
 import textwrap
 from collections.abc import AsyncGenerator, Awaitable, Callable, Generator
+from typing import NamedTuple
 
 import logfire
 import pytest
@@ -13,13 +32,48 @@ from pydantic import BaseModel
 from pydantic_ai import Agent
 from pydantic_ai.mcp import MCPServer, MCPServerStdio
 
-from evals.tools.spy import ToolCallSpy
+from evals._tools.spy import ToolCallSpy
 
 load_dotenv(".env.local")
 logfire.configure(
     send_to_logfire="if-token-present", environment=os.getenv("ENVIRONMENT") or "local"
 )
 logfire.instrument_pydantic_ai()
+
+
+class ProviderConfig(NamedTuple):
+    """Configuration for a model provider."""
+
+    api_key_env: str
+    simple_model: str
+    reasoning_model: str
+
+
+# Provider-specific model configurations
+PROVIDER_CONFIGS: dict[str, ProviderConfig] = {
+    "anthropic": ProviderConfig(
+        api_key_env="ANTHROPIC_API_KEY",
+        simple_model="anthropic:claude-3-5-sonnet-latest",
+        reasoning_model="anthropic:claude-sonnet-4-20250514",
+    ),
+    "openai": ProviderConfig(
+        api_key_env="OPENAI_API_KEY",
+        simple_model="openai:gpt-4o",
+        reasoning_model="openai:gpt-4.1",
+    ),
+}
+
+
+def get_provider_config() -> ProviderConfig:
+    """Get configuration for the current provider."""
+    provider = os.getenv("MODEL_PROVIDER", "anthropic").lower()
+    if provider not in PROVIDER_CONFIGS:
+        raise ValueError(
+            f"unsupported MODEL_PROVIDER: {provider}. "
+            f"supported providers: {', '.join(PROVIDER_CONFIGS.keys())}"
+        )
+    return PROVIDER_CONFIGS[provider]
+
 
 # Retry all eval tests on Anthropic API rate limiting or overload errors
 pytestmark = pytest.mark.flaky(
@@ -37,21 +91,41 @@ class EvaluationResult(BaseModel):
 
 
 @pytest.fixture(scope="session", autouse=True)
-def ensure_anthropic_api_key() -> None:
-    if not os.getenv("ANTHROPIC_API_KEY"):
-        raise ValueError("ANTHROPIC_API_KEY is not set")
+def ensure_api_key() -> None:
+    """Ensure required API key is set based on provider."""
+    config = get_provider_config()
+    if not os.getenv(config.api_key_env):
+        raise ValueError(f"{config.api_key_env} is not set")
 
 
 @pytest.fixture
 def simple_model() -> str:
-    """Model for straightforward diagnostic tasks."""
-    return os.getenv("SIMPLE_AGENT_MODEL", "anthropic:claude-3-5-sonnet-latest")
+    """Model for straightforward diagnostic tasks.
+
+    Provider-specific defaults:
+    - anthropic: claude-3-5-sonnet-latest
+    - openai: gpt-4o
+
+    Override with SIMPLE_AGENT_MODEL environment variable.
+    """
+    if model := os.getenv("SIMPLE_AGENT_MODEL"):
+        return model
+    return get_provider_config().simple_model
 
 
 @pytest.fixture
 def reasoning_model() -> str:
-    """Model for tasks requiring complex reasoning and conceptual relationship navigation."""
-    return os.getenv("REASONING_AGENT_MODEL", "anthropic:claude-sonnet-4-20250514")
+    """Model for tasks requiring complex reasoning and conceptual relationship navigation.
+
+    Provider-specific defaults:
+    - anthropic: claude-sonnet-4-20250514
+    - openai: gpt-4.1
+
+    Override with REASONING_AGENT_MODEL environment variable.
+    """
+    if model := os.getenv("REASONING_AGENT_MODEL"):
+        return model
+    return get_provider_config().reasoning_model
 
 
 @pytest.fixture(scope="session")

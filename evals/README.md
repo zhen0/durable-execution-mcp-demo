@@ -22,6 +22,25 @@ From the repo root, run `just evals` (or `uv run pytest evals`).
 Each test bootstraps an ephemeral Prefect API via `prefect_test_harness`, mutates it into the
 required state, and drives the `prefect_mcp_server` through Pydantic AI.
 
+### configuring model providers
+
+By default, evals use Anthropic models. You can switch providers or override specific models:
+
+```bash
+# use openai instead of anthropic
+MODEL_PROVIDER=openai just evals
+
+# use specific models (works with any provider)
+SIMPLE_AGENT_MODEL=openai:gpt-4o REASONING_AGENT_MODEL=openai:gpt-4.1 just evals
+
+# override just one model
+REASONING_AGENT_MODEL=anthropic:claude-opus-4-1-20250805 just evals
+```
+
+Provider defaults:
+- **anthropic** (default): simple=claude-3-5-sonnet-latest, reasoning=claude-sonnet-4-20250514
+- **openai**: simple=gpt-4o, reasoning=gpt-4.1
+
 ## current evals
 
 | eval | description | status | issue |
@@ -33,7 +52,9 @@ required state, and drives the `prefect_mcp_server` through Pydantic AI.
 | **late_runs/test_work_queue_concurrency** | verifies agent can diagnose late runs caused by work queue concurrency limits | ✅ implemented | [#32](https://github.com/PrefectHQ/prefect-mcp-server/issues/32) |
 | **late_runs/test_deployment_concurrency** | verifies agent can diagnose late runs caused by deployment concurrency limits | ✅ implemented | [#32](https://github.com/PrefectHQ/prefect-mcp-server/issues/32) |
 | **late_runs/test_tag_concurrency** | verifies agent can diagnose late runs caused by tag-based concurrency limits | ✅ implemented | [#32](https://github.com/PrefectHQ/prefect-mcp-server/issues/32) |
-| **create a reactive automation** | verifies agent can create reactive automations | ✅ implemented | [#47](https://github.com/PrefectHQ/prefect-mcp-server/pull/47) |
+| **test_create_reactive_automation** | verifies agent can create reactive automations | ✅ implemented | [#47](https://github.com/PrefectHQ/prefect-mcp-server/pull/47) |
+| **test_trigger_deployment_run** | verifies agent can trigger deployment runs with custom parameters | ✅ implemented | - |
+| **test_debug_automation_not_firing** | verifies agent can debug why an automation didn't fire due to threshold mismatch | ✅ implemented | [#62](https://github.com/PrefectHQ/prefect-mcp-server/issues/62) |
 
 ## adding new evals
 
