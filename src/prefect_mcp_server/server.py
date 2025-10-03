@@ -10,6 +10,7 @@ from prefect.client.base import ServerType, determine_server_type
 from pydantic import Field
 
 from prefect_mcp_server import _prefect_client
+from prefect_mcp_server.settings import settings
 from prefect_mcp_server.types import (
     AutomationsResult,
     DashboardResult,
@@ -23,11 +24,24 @@ from prefect_mcp_server.types import (
     WorkPoolsResult,
 )
 
+try:
+    import logfire
+
+    logfire.configure(
+        send_to_logfire=settings.logfire.send_to_logfire,
+        environment=settings.logfire.environment,
+        token=settings.logfire.token,
+    )
+    logfire.instrument_mcp()
+except ImportError:
+    pass
+
 mcp = FastMCP("Prefect MCP Server")
 
 # Mount the Prefect docs MCP server to expose its tools
 docs_proxy = FastMCP.as_proxy(
-    ProxyClient("https://prefect-docs-mcp.fastmcp.app/mcp"), name="Prefect Docs Proxy"
+    ProxyClient("https://prefect-docs-mcp.fastmcp.app/mcp"),
+    name="Prefect Documentation Search",
 )
 mcp.mount(docs_proxy, prefix="docs")
 
