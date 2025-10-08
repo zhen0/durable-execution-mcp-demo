@@ -40,7 +40,7 @@ mcp = FastMCP("Prefect MCP Server")
 
 # Mount the Prefect docs MCP server to expose its tools
 docs_proxy = FastMCP.as_proxy(
-    ProxyClient("https://docs.prefect.io/mcp"),
+    ProxyClient(settings.docs_mcp.url, init_timeout=settings.docs_mcp.init_timeout),
     name="Prefect Documentation Search",
 )
 mcp.mount(docs_proxy, prefix="docs")
