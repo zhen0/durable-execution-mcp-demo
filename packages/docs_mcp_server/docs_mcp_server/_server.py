@@ -31,6 +31,7 @@ logfire.configure(
 # instrument ALL OpenAI clients to capture token usage automatically
 logfire.instrument_openai(AsyncOpenAI)
 
+
 app = FastMCP("Prefect Docs MCP", version="0.1.0")
 
 
@@ -179,7 +180,10 @@ async def search_prefect(
             span.set_attribute("score_max", max(scores))
             span.set_attribute("score_avg", sum(scores) / len(scores))
 
-        return _build_response(query, results)
+        response = _build_response(query, results)
+
+    logfire.force_flush()
+    return response
 
 
 def row_to_dict(row: Row) -> dict[str, Any]:
