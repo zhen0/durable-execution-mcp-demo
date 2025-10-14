@@ -867,7 +867,7 @@ wheels = [
 [[package]]
 name = "docs-mcp-server"
 version = "0.1.0"
-source = { virtual = "src/docs_mcp_server" }
+source = { editable = "packages/docs_mcp_server" }
 dependencies = [
     { name = "fastmcp" },
     { name = "logfire" },
@@ -1529,7 +1529,7 @@ wheels = [
 [[package]]
 name = "ingestion-pipeline"
 version = "0.1.0"
-source = { virtual = "src/ingestion_pipeline" }
+source = { virtual = "packages/ingestion_pipeline" }
 dependencies = [
     { name = "prefect" },
     { name = "raggy" },
