@@ -7,6 +7,7 @@ This demo showcases:
 - Model requests and tool calls tracked as Prefect tasks
 """
 
+import os
 from typing import Annotated
 
 from prefect import flow, task, variables
@@ -38,31 +39,35 @@ async def create_agent(mcp_server_url: str, model: str) -> PrefectAgent:
     Returns:
         PrefectAgent wrapping the configured agent
     """
-    # Load API key from secret block based on model provider
-    api_key = None
+    # Load API key from secret block and set in environment
+    # PydanticAI looks for API keys in environment variables
     if model.startswith("anthropic:"):
         try:
             secret = await Secret.load("anthropic-api-key")
             api_key = secret.get()
+            os.environ["ANTHROPIC_API_KEY"] = api_key
             print("✓ Loaded Anthropic API key from secret block")
         except Exception as e:
-            print(f"⚠️  Could not load anthropic-api-key: {e}")
+            raise ValueError(f"Failed to load anthropic-api-key secret: {e}")
     elif model.startswith("openai:"):
         try:
             secret = await Secret.load("openai-api-key")
             api_key = secret.get()
+            os.environ["OPENAI_API_KEY"] = api_key
             print("✓ Loaded OpenAI API key from secret block")
         except Exception as e:
-            print(f"⚠️  Could not load openai-api-key: {e}")
+            raise ValueError(f"Failed to load openai-api-key secret: {e}")
+    else:
+        raise ValueError(f"Unsupported model provider: {model}")
 
     # Connect to Prefect MCP server via streamable HTTP
     mcp_server = MCPServerStreamableHTTP(mcp_server_url)
 
     # Create PydanticAI agent with instructions
-    agent_kwargs = {
-        "model": model,
-        "name": "prefect-assistant",
-        "instructions": """You are a helpful assistant for managing Prefect workflows.
+    agent = Agent(
+        model,
+        name="prefect-assistant",
+        instructions="""You are a helpful assistant for managing Prefect workflows.
 
 You have access to Prefect MCP tools that let you:
 - View dashboard overviews (flow runs, work pools, concurrency limits)
@@ -74,13 +79,8 @@ You have access to Prefect MCP tools that let you:
 Always provide clear, actionable insights when analyzing Prefect data.
 When debugging failures, look at logs and task run details to identify root causes.
 """,
-        "toolsets": [mcp_server],
-    }
-
-    if api_key:
-        agent_kwargs["api_key"] = api_key
-
-    agent = Agent(**agent_kwargs)
+        toolsets=[mcp_server],
+    )
 
     # Wrap with PrefectAgent for durability and observability
     # This makes model requests and tool calls visible as Prefect tasks
