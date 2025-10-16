@@ -16,6 +16,10 @@ prefect block register -m prefect.blocks.system
 # Using Python
 from prefect.blocks.system import Secret
 
+# For FastMCP server authentication (required)
+fastmcp_secret = Secret(value="your-fastmcp-auth-token")
+fastmcp_secret.save(name="fastmcp-auth-token")
+
 # For Anthropic (Claude models)
 anthropic_secret = Secret(value="your-anthropic-api-key")
 anthropic_secret.save(name="anthropic-api-key")

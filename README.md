@@ -43,6 +43,10 @@ Then create secrets using Python:
 ```python
 from prefect.blocks.system import Secret
 
+# For FastMCP server authentication (required)
+fastmcp_secret = Secret(value="your-fastmcp-auth-token")
+fastmcp_secret.save(name="fastmcp-auth-token")
+
 # For Anthropic Claude models (required if using Claude)
 anthropic_secret = Secret(value="your-anthropic-api-key")
 anthropic_secret.save(name="anthropic-api-key")
@@ -122,6 +126,7 @@ You'll see:
 
 ### Secret Blocks
 
+- **fastmcp-auth-token** (required): Authentication token for your FastMCP server
 - **anthropic-api-key** (required for Claude): Anthropic API key
 - **openai-api-key** (required for OpenAI): OpenAI API key
 - **logfire-token** (optional): Logfire token for observability

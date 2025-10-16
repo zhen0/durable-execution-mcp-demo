@@ -60,8 +60,19 @@ async def create_agent(mcp_server_url: str, model: str) -> PrefectAgent:
     else:
         raise ValueError(f"Unsupported model provider: {model}")
 
-    # Connect to Prefect MCP server via streamable HTTP
-    mcp_server = MCPServerStreamableHTTP(mcp_server_url)
+    # Load FastMCP auth token from secret block
+    try:
+        fastmcp_secret = await Secret.load("fastmcp-auth-token")
+        fastmcp_token = fastmcp_secret.get()
+        print("✓ Loaded FastMCP auth token from secret block")
+    except Exception as e:
+        raise ValueError(f"Failed to load fastmcp-auth-token secret: {e}")
+
+    # Connect to Prefect MCP server via streamable HTTP with auth
+    mcp_server = MCPServerStreamableHTTP(
+        mcp_server_url,
+        headers={"Authorization": f"Bearer {fastmcp_token}"}
+    )
 
     # Create PydanticAI agent with instructions
     agent = Agent(
