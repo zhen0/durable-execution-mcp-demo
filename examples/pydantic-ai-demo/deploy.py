@@ -29,10 +29,8 @@ openai_secret.save(name="openai-api-key")
 import asyncio
 import sys
 
-from prefect import variables
+from prefect import flow, variables
 from prefect.blocks.system import Secret
-
-from demo_flow import run_agent_flow
 
 
 async def deploy():
@@ -97,12 +95,18 @@ async def deploy():
     if openai_key:
         env_vars["OPENAI_API_KEY"] = openai_key
 
-    # Deploy the flow with managed execution
+    # Deploy the flow with managed execution using code storage
     # The work_pool_name="prefect-managed" uses Prefect Cloud's managed infrastructure
-    run_agent_flow.deploy(
+    flow.from_source(
+        source="https://github.com/zhen0/durable-execution-mcp-demo.git",
+        entrypoint="examples/pydantic-ai-demo/demo_flow.py:run_agent_flow",
+    ).deploy(
         name="pydantic-ai-mcp-demo",
         work_pool_name="prefect-managed",
-        job_variables={"env": env_vars},
+        job_variables={
+            "env": env_vars,
+            "pip_packages": ["pydantic-ai>=1.0.10", "anthropic>=0.40.0", "openai>=1.0.0"]
+        },
         tags=["pydantic-ai", "mcp", "demo"],
     )
 
