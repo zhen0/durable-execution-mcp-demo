@@ -9,12 +9,16 @@ This demo showcases:
 
 from typing import Annotated
 
+import logfire
 from prefect import flow, task, variables
 from prefect.blocks.system import Secret
 from pydantic import Field
 from pydantic_ai import Agent
 from pydantic_ai.durable_exec.prefect import PrefectAgent
 from pydantic_ai.mcp import MCPServerStreamableHTTP
+
+# Configure Logfire for observability
+logfire.configure()
 
 
 # Example prompts that use Prefect MCP tools

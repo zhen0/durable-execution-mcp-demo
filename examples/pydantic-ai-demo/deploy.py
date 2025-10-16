@@ -106,7 +106,7 @@ if __name__ == "__main__":
         work_pool_name="new-managed",
         parameters={"prompt": "Show me a dashboard overview of my Prefect instance"},
         job_variables={
-            "pip_packages": ["pydantic-ai>=1.0.10", "anthropic>=0.40.0", "openai>=1.0.0"]
+            "pip_packages": ["pydantic-ai>=1.0.10", "anthropic>=0.40.0", "openai>=1.0.0", "logfire>=1.0.0"]
         },
         tags=["pydantic-ai", "mcp", "demo"],
     )
