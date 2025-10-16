@@ -13,7 +13,7 @@ prefect variable set pydantic-ai-model "anthropic:claude-3-5-sonnet-20241022"
 # Create secret blocks for API keys
 prefect block register -m prefect.blocks.system
 
-# Using Prefect CLI or Python
+# Using Python
 from prefect.blocks.system import Secret
 
 # For Anthropic (Claude models)
@@ -23,6 +23,10 @@ anthropic_secret.save(name="anthropic-api-key")
 # For OpenAI models
 openai_secret = Secret(value="your-openai-api-key")
 openai_secret.save(name="openai-api-key")
+
+# For Logfire observability (optional)
+logfire_secret = Secret(value="your-logfire-token")
+logfire_secret.save(name="logfire-token")
 ```
 """
 

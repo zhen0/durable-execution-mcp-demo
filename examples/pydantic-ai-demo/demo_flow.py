@@ -9,16 +9,12 @@ This demo showcases:
 
 from typing import Annotated
 
-import logfire
 from prefect import flow, task, variables
 from prefect.blocks.system import Secret
 from pydantic import Field
 from pydantic_ai import Agent
 from pydantic_ai.durable_exec.prefect import PrefectAgent
 from pydantic_ai.mcp import MCPServerStreamableHTTP
-
-# Configure Logfire for observability
-logfire.configure()
 
 
 # Example prompts that use Prefect MCP tools
@@ -141,6 +137,17 @@ async def run_agent_flow(
     Returns:
         The agent's response
     """
+    # Configure Logfire if token is available
+    try:
+        import logfire
+
+        logfire_secret = await Secret.load("logfire-token")
+        logfire_token = logfire_secret.get()
+        logfire.configure(token=logfire_token)
+        print("✓ Configured Logfire observability")
+    except Exception as e:
+        print(f"ℹ️  Logfire not configured: {e}")
+
     # Get MCP server URL from parameter or Prefect variable
     if mcp_server_url:
         server_url = mcp_server_url
