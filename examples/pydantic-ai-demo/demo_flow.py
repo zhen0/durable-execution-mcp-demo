@@ -7,10 +7,10 @@ This demo showcases:
 - Model requests and tool calls tracked as Prefect tasks
 """
 
-import os
 from typing import Annotated
 
-from prefect import flow, task
+from prefect import flow, task, variables
+from prefect.blocks.system import Secret
 from pydantic import Field
 from pydantic_ai import Agent
 from pydantic_ai.durable_exec.prefect import PrefectAgent
@@ -28,7 +28,7 @@ EXAMPLE_PROMPTS = {
 
 
 @task(name="create-agent", task_run_name="create-prefect-mcp-agent")
-def create_agent(mcp_server_url: str, model: str) -> PrefectAgent:
+async def create_agent(mcp_server_url: str, model: str) -> PrefectAgent:
     """Create a PydanticAI agent with Prefect MCP server connection.
 
     Args:
@@ -38,14 +38,31 @@ def create_agent(mcp_server_url: str, model: str) -> PrefectAgent:
     Returns:
         PrefectAgent wrapping the configured agent
     """
+    # Load API key from secret block based on model provider
+    api_key = None
+    if model.startswith("anthropic:"):
+        try:
+            secret = await Secret.load("anthropic-api-key")
+            api_key = secret.get()
+            print("✓ Loaded Anthropic API key from secret block")
+        except Exception as e:
+            print(f"⚠️  Could not load anthropic-api-key: {e}")
+    elif model.startswith("openai:"):
+        try:
+            secret = await Secret.load("openai-api-key")
+            api_key = secret.get()
+            print("✓ Loaded OpenAI API key from secret block")
+        except Exception as e:
+            print(f"⚠️  Could not load openai-api-key: {e}")
+
     # Connect to Prefect MCP server via streamable HTTP
     mcp_server = MCPServerStreamableHTTP(mcp_server_url)
 
     # Create PydanticAI agent with instructions
-    agent = Agent(
-        model,
-        name="prefect-assistant",
-        instructions="""You are a helpful assistant for managing Prefect workflows.
+    agent_kwargs = {
+        "model": model,
+        "name": "prefect-assistant",
+        "instructions": """You are a helpful assistant for managing Prefect workflows.
 
 You have access to Prefect MCP tools that let you:
 - View dashboard overviews (flow runs, work pools, concurrency limits)
@@ -57,8 +74,13 @@ You have access to Prefect MCP tools that let you:
 Always provide clear, actionable insights when analyzing Prefect data.
 When debugging failures, look at logs and task run details to identify root causes.
 """,
-        toolsets=[mcp_server],
-    )
+        "toolsets": [mcp_server],
+    }
+
+    if api_key:
+        agent_kwargs["api_key"] = api_key
+
+    agent = Agent(**agent_kwargs)
 
     # Wrap with PrefectAgent for durability and observability
     # This makes model requests and tool calls visible as Prefect tasks
@@ -109,27 +131,33 @@ async def run_agent_flow(
 
     Args:
         prompt: The question/instruction to send to the agent
-        mcp_server_url: URL of the Prefect MCP server (defaults to env var)
-        model: Model identifier (defaults to env var PYDANTIC_AI_MODEL or anthropic:claude-3-5-sonnet-20241022)
+        mcp_server_url: URL of the Prefect MCP server (defaults to Prefect variable)
+        model: Model identifier (defaults to Prefect variable or anthropic:claude-3-5-sonnet-20241022)
 
     Returns:
         The agent's response
     """
-    # Get MCP server URL from parameter or environment
-    server_url = mcp_server_url or os.getenv("FASTMCP_SERVER_URL")
-    if not server_url:
-        raise ValueError(
-            "FASTMCP_SERVER_URL environment variable must be set or passed as parameter"
-        )
+    # Get MCP server URL from parameter or Prefect variable
+    if mcp_server_url:
+        server_url = mcp_server_url
+    else:
+        server_url = await variables.get("fastmcp-server-url", default=None)
+        if not server_url:
+            raise ValueError(
+                "MCP server URL must be provided as parameter or set as Prefect variable 'fastmcp-server-url'"
+            )
 
-    # Get model from parameter or environment, with sensible default
-    model_name = model or os.getenv("PYDANTIC_AI_MODEL", "anthropic:claude-3-5-sonnet-20241022")
+    # Get model from parameter or Prefect variable, with sensible default
+    if model:
+        model_name = model
+    else:
+        model_name = await variables.get("pydantic-ai-model", default="anthropic:claude-3-5-sonnet-20241022")
 
     print(f"🤖 Creating agent connected to: {server_url}")
     print(f"🧠 Using model: {model_name}")
 
     # Create the agent (as a tracked task)
-    prefect_agent = create_agent(server_url, model_name)
+    prefect_agent = await create_agent(server_url, model_name)
 
     print(f"💬 Running prompt: {prompt}")
 
