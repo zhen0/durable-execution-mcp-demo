@@ -104,7 +104,7 @@ if __name__ == "__main__":
     # The work_pool_name="prefect-managed" uses Prefect Cloud's managed infrastructure
     flow.from_source(
         source="https://github.com/zhen0/durable-execution-mcp-demo.git",
-        entrypoint="examples/pydantic-ai-demo/demo_flow.py:run_agent_flow",
+        entrypoint="demo_flow.py:run_agent_flow",
     ).deploy(
         name="pydantic-ai-mcp-demo",
         work_pool_name="new-managed",

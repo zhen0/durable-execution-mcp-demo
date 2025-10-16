@@ -1,20 +1,17 @@
-# Python-generated files
+# Python
 __pycache__/
-*.py[oc]
-build/
-dist/
-wheels/
-*.egg-info
-
-# Virtual environments
-.venv
-venv/
+*.py[cod]
+*$py.class
+*.so
+.Python
 env/
+venv/
+.venv/
+ENV/
 
 # Environment files
 .env
 .env.local
-.envrc
 
 # IDE
 .vscode/
@@ -23,15 +20,6 @@ env/
 *.swo
 *~
 
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-
-# MCP
-server-info.json
-
 # OS
 .DS_Store
 Thumbs.db
-automation.yaml
