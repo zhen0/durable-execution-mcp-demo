@@ -95,6 +95,7 @@ async def deploy():
     if openai_key:
         env_vars["OPENAI_API_KEY"] = openai_key
 
+if __name__ == "__main__":
     # Deploy the flow with managed execution using code storage
     # The work_pool_name="prefect-managed" uses Prefect Cloud's managed infrastructure
     flow.from_source(
@@ -102,9 +103,9 @@ async def deploy():
         entrypoint="examples/pydantic-ai-demo/demo_flow.py:run_agent_flow",
     ).deploy(
         name="pydantic-ai-mcp-demo",
-        work_pool_name="prefect-managed",
+        work_pool_name="new-managed",
+        parameters={"prompt": "Show me a dashboard overview of my Prefect instance"},
         job_variables={
-            "env": env_vars,
             "pip_packages": ["pydantic-ai>=1.0.10", "anthropic>=0.40.0", "openai>=1.0.0"]
         },
         tags=["pydantic-ai", "mcp", "demo"],
@@ -122,11 +123,3 @@ async def deploy():
     print(f"   prefect deployment run 'pydantic-ai-mcp-demo/pydantic-ai-mcp-demo' \\")
     print(f"     --param model='openai:gpt-4o'")
 
-
-if __name__ == "__main__":
-    run_agent_flow.deploy(
-        name="pydantic-ai-mcp-demo",
-        work_pool_name="new-managed",
-        # job_variables={"env": env_vars},
-        tags=["pydantic-ai", "mcp", "demo"],
-    )
